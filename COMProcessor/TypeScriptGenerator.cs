@@ -7,6 +7,7 @@ using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 using ELEMDESC = System.Runtime.InteropServices.ComTypes.ELEMDESC;
 using FUNCDESC = System.Runtime.InteropServices.ComTypes.FUNCDESC;
+using IMPLTYPEFLAGS = System.Runtime.InteropServices.ComTypes.IMPLTYPEFLAGS;
 using INVOKEKIND = System.Runtime.InteropServices.ComTypes.INVOKEKIND;
 using PARAMFLAG = System.Runtime.InteropServices.ComTypes.PARAMFLAG;
 using TYPEATTR = System.Runtime.InteropServices.ComTypes.TYPEATTR;
@@ -24,6 +25,12 @@ namespace COMProcessor
 
             output.AppendLine("// Generated COM declarations");
             output.AppendLine();
+
+            HashSet<string> eventInterfaces;
+            Dictionary<string, string> interfaceEvents;
+
+            CollectEventInterfaces(typeLib,
+                out eventInterfaces, out interfaceEvents);
 
             for (int i = 0; i < typeLib.GetTypeInfoCount(); i++)
             {
@@ -46,7 +53,11 @@ namespace COMProcessor
                     if (kind == TYPEKIND.TKIND_DISPATCH ||
                         kind == TYPEKIND.TKIND_INTERFACE)
                     {
-                        GenerateInterface(info, name, output);
+                        GenerateInterface(info, name, output,
+                            eventInterfaces.Contains(name),
+                            interfaceEvents.ContainsKey(name)
+                                ? interfaceEvents[name]
+                                : null);
                     }
                     else if (kind == TYPEKIND.TKIND_ENUM)
                     {
@@ -63,10 +74,141 @@ namespace COMProcessor
                 new UTF8Encoding(false));
         }
 
+        private static void CollectEventInterfaces(
+            ITypeLib typeLib,
+            out HashSet<string> eventInterfaces,
+            out Dictionary<string, string> interfaceEvents)
+        {
+            eventInterfaces = new HashSet<string>(StringComparer.Ordinal);
+            interfaceEvents = new Dictionary<string, string>(
+                StringComparer.Ordinal);
+
+            Dictionary<string, string> preferred =
+                new Dictionary<string, string>(StringComparer.Ordinal);
+
+            Dictionary<string, string> fallback =
+                new Dictionary<string, string>(StringComparer.Ordinal);
+
+            for (int i = 0; i < typeLib.GetTypeInfoCount(); i++)
+            {
+                TYPEKIND kind;
+                typeLib.GetTypeInfoType(i, out kind);
+
+                if (kind != TYPEKIND.TKIND_COCLASS)
+                    continue;
+
+                ITypeInfo info;
+                typeLib.GetTypeInfo(i, out info);
+
+                try
+                {
+                    IntPtr attrPtr;
+                    info.GetTypeAttr(out attrPtr);
+
+                    try
+                    {
+                        TYPEATTR attr = (TYPEATTR)Marshal.PtrToStructure(
+                            attrPtr, typeof(TYPEATTR));
+
+                        List<string> sources = new List<string>();
+
+                        List<KeyValuePair<string, bool>> others =
+                            new List<KeyValuePair<string, bool>>();
+
+                        string defaultSource = null;
+
+                        for (int j = 0; j < attr.cImplTypes; j++)
+                        {
+                            int refType;
+                            info.GetRefTypeOfImplType(j, out refType);
+
+                            ITypeInfo refInfo;
+                            info.GetRefTypeInfo(refType, out refInfo);
+
+                            try
+                            {
+                                string refName;
+                                string refDoc;
+                                int refContext;
+                                string refFile;
+
+                                refInfo.GetDocumentation(-1,
+                                    out refName, out refDoc,
+                                    out refContext, out refFile);
+
+                                IMPLTYPEFLAGS flags;
+                                info.GetImplTypeFlags(j, out flags);
+
+                                bool isSource =
+                                    (flags & IMPLTYPEFLAGS
+                                        .IMPLTYPEFLAG_FSOURCE) != 0;
+
+                                bool isDefault =
+                                    (flags & IMPLTYPEFLAGS
+                                        .IMPLTYPEFLAG_FDEFAULT) != 0;
+
+                                if (isSource)
+                                {
+                                    sources.Add(refName);
+                                    eventInterfaces.Add(refName);
+
+                                    if (isDefault && defaultSource == null)
+                                        defaultSource = refName;
+                                }
+                                else
+                                {
+                                    others.Add(new KeyValuePair<string, bool>(
+                                        refName, isDefault));
+                                }
+                            }
+                            finally
+                            {
+                                Marshal.ReleaseComObject(refInfo);
+                            }
+                        }
+
+                        string source = defaultSource != null
+                            ? defaultSource
+                            : sources.Count > 0 ? sources[0] : null;
+
+                        if (source == null)
+                            continue;
+
+                        foreach (var other in others)
+                        {
+                            fallback[other.Key] = source;
+
+                            if (other.Value)
+                                preferred[other.Key] = source;
+                        }
+                    }
+                    finally
+                    {
+                        info.ReleaseTypeAttr(attrPtr);
+                    }
+                }
+                finally
+                {
+                    Marshal.ReleaseComObject(info);
+                }
+            }
+
+            foreach (var item in fallback)
+            {
+                if (!preferred.ContainsKey(item.Key))
+                    preferred[item.Key] = item.Value;
+            }
+
+            foreach (var item in preferred)
+                interfaceEvents[item.Key] = item.Value;
+        }
+
         private static void GenerateInterface(
             ITypeInfo info,
             string name,
-            StringBuilder output)
+            StringBuilder output,
+            bool isEventSource,
+            string eventSourceName)
         {
             IntPtr attrPtr;
             info.GetTypeAttr(out attrPtr);
@@ -86,6 +228,9 @@ namespace COMProcessor
 
                 HashSet<int> writable =
                     new HashSet<int>();
+
+                List<KeyValuePair<string, string>> eventHandlers =
+                    new List<KeyValuePair<string, string>>();
 
                 for (int i = 0; i < attr.cFuncs; i++)
                 {
@@ -143,12 +288,12 @@ namespace COMProcessor
                         else if (func.invkind ==
                             INVOKEKIND.INVOKE_FUNC)
                         {
-                            output.Append("    " + member + "(");
+                            StringBuilder parameters = new StringBuilder();
 
                             for (int p = 0; p < func.cParams; p++)
                             {
                                 if (p > 0)
-                                    output.Append(", ");
+                                    parameters.Append(", ");
 
                                 IntPtr paramPtr = IntPtr.Add(
                                     func.lprgelemdescParam,
@@ -167,21 +312,33 @@ namespace COMProcessor
                                     (param.desc.paramdesc.wParamFlags &
                                     PARAMFLAG.PARAMFLAG_FOPT) != 0;
 
-                                output.Append(paramName);
+                                parameters.Append(paramName);
 
                                 if (optional)
-                                    output.Append("?");
+                                    parameters.Append("?");
 
-                                output.Append(": ");
-                                output.Append(ResolveType(
+                                parameters.Append(": ");
+                                parameters.Append(ResolveType(
                                     info, param.tdesc));
                             }
 
-                            output.Append("): ");
-                            output.Append(ResolveType(
-                                info, func.elemdescFunc.tdesc));
+                            string returnType = ResolveType(
+                                info, func.elemdescFunc.tdesc);
 
+                            output.Append("    " + member + "(");
+                            output.Append(parameters);
+                            output.Append("): ");
+                            output.Append(returnType);
                             output.AppendLine(";");
+
+                            if (isEventSource)
+                            {
+                                eventHandlers.Add(
+                                    new KeyValuePair<string, string>(
+                                        GetEventName(member),
+                                        "(" + parameters + ") => "
+                                        + returnType));
+                            }
                         }
                     }
                     finally
@@ -207,13 +364,67 @@ namespace COMProcessor
                     output.AppendLine(";");
                 }
 
+                if (eventSourceName != null)
+                {
+                    string eventMap = eventSourceName + "Handlers";
+
+                    output.AppendLine("    attachEvent<T extends keyof "
+                        + eventMap + ">(");
+                    output.AppendLine("        event: T,");
+                    output.AppendLine("        handler: "
+                        + eventMap + "[T]");
+                    output.AppendLine("    ): boolean;");
+                    output.AppendLine("    detachEvent<T extends keyof "
+                        + eventMap + ">(");
+                    output.AppendLine("        event: T,");
+                    output.AppendLine("        handler: "
+                        + eventMap + "[T]");
+                    output.AppendLine("    ): void;");
+                }
+
                 output.AppendLine("}");
                 output.AppendLine();
+
+                if (isEventSource)
+                    GenerateEventHandlerMap(name, eventHandlers, output);
             }
             finally
             {
                 info.ReleaseTypeAttr(attrPtr);
             }
+        }
+
+        private static void GenerateEventHandlerMap(
+            string name,
+            List<KeyValuePair<string, string>> eventHandlers,
+            StringBuilder output)
+        {
+            output.AppendLine("declare interface " + name + "Handlers {");
+
+            foreach (var handler in eventHandlers)
+            {
+                output.Append("    \"");
+                output.Append(handler.Key);
+                output.Append("\": ");
+                output.Append(handler.Value);
+                output.AppendLine(";");
+            }
+
+            output.AppendLine("}");
+            output.AppendLine();
+        }
+
+        private static string GetEventName(string member)
+        {
+            string name = member;
+
+            if (name.StartsWith("On", StringComparison.OrdinalIgnoreCase) &&
+                name.Length > 2)
+            {
+                name = name.Substring(2);
+            }
+
+            return "on" + name.ToLowerInvariant();
         }
 
         private static void GenerateEnum(

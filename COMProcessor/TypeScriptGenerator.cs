@@ -258,6 +258,9 @@ namespace COMProcessor
                                 variable.desc.lpvarValue);
                         }
 
+                        if (value == null)
+                            continue;
+
                         output.Append("    ");
                         output.Append(names[0]);
                         output.Append(" = ");

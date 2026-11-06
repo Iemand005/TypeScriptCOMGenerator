@@ -252,7 +252,7 @@ namespace COMProcessor
 
                         object value = null;
 
-                        if (variable.varkind == VAR_CONST)
+                        if (variable.varkind == VARKIND.VAR_CONST)
                         {
                             value = Marshal.GetObjectForNativeVariant(
                                 variable.desc.lpvarValue);

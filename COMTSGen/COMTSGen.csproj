@@ -49,5 +49,11 @@
   <ItemGroup>
     <None Include="App.config" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\COMProcessor\COMProcessor.csproj">
+      <Project>{90273e58-582c-4c2e-a16c-bba3f7584614}</Project>
+      <Name>COMProcessor</Name>
+    </ProjectReference>
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

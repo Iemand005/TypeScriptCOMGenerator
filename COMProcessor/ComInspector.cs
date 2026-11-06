@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace COMProcessor
 {
-    internal class ComInspector
+    public class ComInspector
     {
         [DllImport("oleaut32.dll", PreserveSig = false)]
         private static extern void LoadRegTypeLib(

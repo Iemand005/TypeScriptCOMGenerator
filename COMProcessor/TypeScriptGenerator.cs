@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace COMProcessor
 {
-    public class Class1
+    public class TypeScriptGenerator
     {
     }
 }

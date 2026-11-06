@@ -7,6 +7,9 @@ namespace COMTSGen
 {
     internal class Program
     {
+        private const string DefaultOutputPath =
+            @"C:\Users\Lasse\Documents\Projects\LibCOMTS\lib.com.web.d.ts";
+
         static int Main(string[] args)
         {
             if (args.Length < 1)
@@ -21,7 +24,7 @@ namespace COMTSGen
 
                 string output = args.Length >= 2
                     ? args[1]
-                    : "com.d.ts";
+                    : DefaultOutputPath;
 
                 ITypeLib typeLib = ComInspector.LoadTypeLibrary(clsid);
 

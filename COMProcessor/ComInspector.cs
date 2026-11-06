@@ -92,7 +92,7 @@ namespace COMProcessor
 
                         try
                         {
-                            System.Runtime.InteropServices.ComTypes.TYPEATTR attr =
+                            var attr =
                                 (System.Runtime.InteropServices.ComTypes.TYPEATTR)Marshal.PtrToStructure(
                                     attrPtr, typeof(System.Runtime.InteropServices.ComTypes.TYPEATTR));
 

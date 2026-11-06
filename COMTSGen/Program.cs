@@ -23,14 +23,7 @@ namespace COMTSGen
 
                 Guid clsid = new Guid(args[0]);
 
-                
-                ComInspector.EnumerateTypeLibrary(Environment.SystemDirectory + @"\shell32.dll");
-
-                ComInspector.EnumerateMembers(
-                    Environment.SystemDirectory + @"\shell32.dll"
-                );
-
-                ComInspector.EnumerateTypes(clsid);
+                ComInspector.EnumerateMembers(clsid);
 
                 return 0;
             }

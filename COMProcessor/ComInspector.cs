@@ -19,6 +19,9 @@ namespace COMProcessor
             int lcid,
             out ITypeLib typeLib);
 
+        [DllImport("oleaut32.dll", CharSet = CharSet.Unicode, PreserveSig = false)]
+        private static extern void LoadTypeLibEx(string file, int regKind, out ITypeLib typeLib);
+
         public static ITypeLib LoadTypeLibrary(Guid clsid)
         {
             string clsidPath = @"CLSID\" + clsid.ToString("B");

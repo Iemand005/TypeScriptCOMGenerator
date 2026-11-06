@@ -19,6 +19,59 @@ namespace COMProcessor
 {
     public static class TypeScriptGenerator
     {
+        private static readonly HashSet<string> ReservedParameterNames =
+            new HashSet<string>(StringComparer.Ordinal)
+            {
+                "arguments",
+                "await",
+                "break",
+                "case",
+                "catch",
+                "class",
+                "const",
+                "continue",
+                "debugger",
+                "default",
+                "delete",
+                "do",
+                "else",
+                "enum",
+                "eval",
+                "export",
+                "extends",
+                "false",
+                "finally",
+                "for",
+                "function",
+                "if",
+                "implements",
+                "import",
+                "in",
+                "instanceof",
+                "interface",
+                "let",
+                "new",
+                "null",
+                "package",
+                "private",
+                "protected",
+                "public",
+                "return",
+                "static",
+                "super",
+                "switch",
+                "this",
+                "throw",
+                "true",
+                "try",
+                "typeof",
+                "var",
+                "void",
+                "while",
+                "with",
+                "yield",
+            };
+
         public static void Generate(ITypeLib typeLib, string outputPath)
         {
             StringBuilder output = new StringBuilder();
@@ -308,6 +361,8 @@ namespace COMProcessor
                                     ? names[p + 1]
                                     : "arg" + p;
 
+                                paramName = EscapeParameterName(paramName);
+
                                 bool optional =
                                     (param.desc.paramdesc.wParamFlags &
                                     PARAMFLAG.PARAMFLAG_FOPT) != 0;
@@ -425,6 +480,16 @@ namespace COMProcessor
             }
 
             return "on" + name.ToLowerInvariant();
+        }
+
+        private static string EscapeParameterName(string name)
+        {
+            if (String.IsNullOrEmpty(name))
+                return "arg";
+
+            return ReservedParameterNames.Contains(name)
+                ? name + "_"
+                : name;
         }
 
         private static void GenerateEnum(

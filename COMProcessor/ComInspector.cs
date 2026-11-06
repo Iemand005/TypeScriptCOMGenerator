@@ -26,6 +26,7 @@ namespace COMProcessor
         [DllImport("oleaut32.dll", CharSet = CharSet.Unicode, PreserveSig = false)]
         private static extern void LoadTypeLibEx(string file, int regKind, out ITypeLib typeLib);
 
+
         public static ITypeLib LoadTypeLibrary(Guid clsid)
         {
             string clsidPath = @"CLSID\" + clsid.ToString("B");
@@ -39,36 +40,46 @@ namespace COMProcessor
                 string libid = key.GetValue("TypeLib") as string;
                 string version = key.GetValue("Version") as string;
 
-                Console.WriteLine("CLSID: " + clsid);
-                Console.WriteLine("TypeLib: " + (libid ?? "<missing>"));
-                Console.WriteLine("Version: " + (version ?? "<missing>"));
-                Console.WriteLine("InprocServer32: " +
-                    key.OpenSubKey("InprocServer32")?.GetValue(""));
-                Console.WriteLine("LocalServer32: " +
-                    key.OpenSubKey("LocalServer32")?.GetValue(""));
+                // First: load registered Type Library
+                if (libid != null && version != null)
+                {
+                    string[] parts = version.Split('.');
 
-                if (libid == null || version == null)
-                    throw new InvalidOperationException(
-                        "CLSID has no registered Type Library.");
+                    Guid typeLibId = new Guid(libid);
 
-                string[] parts = version.Split('.');
+                    ITypeLib typeLib;
 
-                Guid typeLibId = new Guid(libid);
-                short major = short.Parse(parts[0]);
-                short minor = short.Parse(parts[1]);
+                    LoadRegTypeLib(
+                        ref typeLibId,
+                        short.Parse(parts[0]),
+                        short.Parse(parts[1]),
+                        0,
+                        out typeLib);
 
-                ITypeLib typeLib;
+                    return typeLib;
+                }
 
-                LoadRegTypeLib(
-                    ref typeLibId,
-                    major,
-                    minor,
-                    0,
-                    out typeLib);
+                // Fallback: inspect the COM server DLL
+                using (RegistryKey server =
+                    key.OpenSubKey("InprocServer32"))
+                {
+                    string path = server?.GetValue("") as string;
 
-                return typeLib;
+                    if (path != null)
+                    {
+                        path = Environment.ExpandEnvironmentVariables(
+                            path.Trim().Trim('"'));
+
+                        if (System.IO.File.Exists(path))
+                            return LoadTypeLibraryFromFile(path);
+                    }
+                }
+
+                throw new InvalidOperationException(
+                    "Could not locate a Type Library for CLSID " + clsid);
             }
         }
+
 
         public static ITypeLib LoadTypeLibraryFromFile(string path)
         {
@@ -188,11 +199,13 @@ namespace COMProcessor
             }
         }
 
-
-        public static void EnumerateMembers(string path)
+        public static void EnumerateMembers(Guid clsid)
         {
-            ITypeLib typeLib = LoadTypeLibraryFromFile(path);
+            EnumerateMembers(LoadTypeLibrary(clsid));
+        }
 
+        public static void EnumerateMembers(ITypeLib typeLib)
+        {
             try
             {
                 for (int i = 0; i < typeLib.GetTypeInfoCount(); i++)

@@ -26,6 +26,10 @@ namespace COMTSGen
                 
                 ComInspector.EnumerateTypeLibrary(Environment.SystemDirectory + @"\shell32.dll");
 
+                ComInspector.EnumerateMembers(
+                    Environment.SystemDirectory + @"\shell32.dll"
+                );
+
                 ComInspector.EnumerateTypes(clsid);
 
                 return 0;

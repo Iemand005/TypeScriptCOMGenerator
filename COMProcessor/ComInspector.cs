@@ -6,7 +6,10 @@ using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 using System.Threading.Tasks;
+using FUNCDESC = System.Runtime.InteropServices.ComTypes.FUNCDESC;
+using TYPEATTR = System.Runtime.InteropServices.ComTypes.TYPEATTR;
 using TYPEKIND = System.Runtime.InteropServices.ComTypes.TYPEKIND;
+using VARDESC = System.Runtime.InteropServices.ComTypes.VARDESC;
 
 namespace COMProcessor
 {
@@ -184,5 +187,123 @@ namespace COMProcessor
                 Marshal.ReleaseComObject(typeLib);
             }
         }
+
+
+        public static void EnumerateMembers(string path)
+        {
+            ITypeLib typeLib = LoadTypeLibraryFromFile(path);
+
+            try
+            {
+                for (int i = 0; i < typeLib.GetTypeInfoCount(); i++)
+                {
+                    TYPEKIND kind;
+                    ITypeInfo info;
+
+                    typeLib.GetTypeInfoType(i, out kind);
+                    typeLib.GetTypeInfo(i, out info);
+
+                    try
+                    {
+                        string name;
+                        string doc;
+                        int helpContext;
+                        string helpFile;
+
+                        info.GetDocumentation(
+                            -1, out name, out doc,
+                            out helpContext, out helpFile);
+
+                        IntPtr attrPtr;
+                        info.GetTypeAttr(out attrPtr);
+
+                        try
+                        {
+                            TYPEATTR attr = (TYPEATTR)Marshal.PtrToStructure(
+                                attrPtr, typeof(TYPEATTR));
+
+                            Console.WriteLine();
+                            Console.WriteLine($"{kind} {name}");
+
+                            for (int j = 0; j < attr.cFuncs; j++)
+                            {
+                                IntPtr funcPtr;
+                                info.GetFuncDesc(j, out funcPtr);
+
+                                try
+                                {
+                                    FUNCDESC func = (FUNCDESC)
+                                        Marshal.PtrToStructure(
+                                            funcPtr, typeof(FUNCDESC));
+
+                                    string[] names = new string[func.cParams + 1];
+                                    int found;
+
+                                    info.GetNames(func.memid, names,
+                                        names.Length, out found);
+
+                                    string memberName = found > 0
+                                        ? names[0]
+                                        : "<unknown>";
+
+                                    Console.WriteLine(
+                                        $"  {func.invkind,-20} {memberName} " +
+                                        $"({func.cParams} parameters) " +
+                                        $"-> VT_{func.elemdescFunc.tdesc.vt}");
+                                }
+                                finally
+                                {
+                                    info.ReleaseFuncDesc(funcPtr);
+                                }
+                            }
+
+                            for (int j = 0; j < attr.cVars; j++)
+                            {
+                                IntPtr varPtr;
+                                info.GetVarDesc(j, out varPtr);
+
+                                try
+                                {
+                                    VARDESC variable = (VARDESC)
+                                        Marshal.PtrToStructure(
+                                            varPtr, typeof(VARDESC));
+
+                                    string[] names = new string[1];
+                                    int found;
+
+                                    info.GetNames(variable.memid,
+                                        names, 1, out found);
+
+                                    string memberName = found > 0
+                                        ? names[0]
+                                        : "<unknown>";
+
+                                    Console.WriteLine(
+                                        $"  VARIABLE             {memberName} " +
+                                        $"-> VT_{variable.elemdescVar.tdesc.vt}");
+                                }
+                                finally
+                                {
+                                    info.ReleaseVarDesc(varPtr);
+                                }
+                            }
+                        }
+                        finally
+                        {
+                            info.ReleaseTypeAttr(attrPtr);
+                        }
+                    }
+                    finally
+                    {
+                        Marshal.ReleaseComObject(info);
+                    }
+                }
+            }
+            finally
+            {
+                Marshal.ReleaseComObject(typeLib);
+            }
+        }
+
     }
 }

@@ -141,7 +141,7 @@ namespace COMProcessor
                             }
                         }
                         else if (func.invkind ==
-                            INVOKEKIND.INVOKE_METHOD)
+                            INVOKEKIND.INVOKE_FUNC)
                         {
                             output.Append("    " + member + "(");
 
@@ -250,8 +250,13 @@ namespace COMProcessor
                         if (found == 0)
                             continue;
 
-                        object value = Marshal.GetObjectForNativeVariant(
-                            variable.lpvarValue);
+                        object value = null;
+
+                        if (variable.varkind == VAR_CONST)
+                        {
+                            value = Marshal.GetObjectForNativeVariant(
+                                variable.desc.lpvarValue);
+                        }
 
                         output.Append("    ");
                         output.Append(names[0]);

@@ -1,9 +1,10 @@
-﻿using System;
+﻿using COMProcessor;
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 using System.Threading.Tasks;
-using COMProcessor;
 
 namespace COMTSGen
 {
@@ -25,6 +26,10 @@ namespace COMTSGen
                 
 
                 ComInspector.EnumerateTypes(clsid);
+
+                ITypeLib lib = ComInspector.LoadTypeLibraryFromFile(Environment.SystemDirectory + @"\shell32.dll");
+
+                Console.WriteLine("Types: " + lib.GetTypeInfoCount());
 
                 return 0;
             }

@@ -66,6 +66,15 @@ namespace COMProcessor
             }
         }
 
+        public static ITypeLib LoadTypeLibraryFromFile(string path)
+        {
+            ITypeLib typeLib;
+
+            LoadTypeLibEx(path, 2, out typeLib);
+
+            return typeLib;
+        }
+
         public static void EnumerateTypes(Guid clsid)
         {
             ITypeLib typeLib = LoadTypeLibrary(clsid);

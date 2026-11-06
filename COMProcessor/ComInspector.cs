@@ -138,5 +138,50 @@ namespace COMProcessor
                 Marshal.ReleaseComObject(typeLib);
             }
         }
+
+        public static void EnumerateTypeLibrary(string path)
+        {
+            ITypeLib typeLib = LoadTypeLibraryFromFile(path);
+
+            try
+            {
+                int count = typeLib.GetTypeInfoCount();
+
+                for (int i = 0; i < count; i++)
+                {
+                    TYPEKIND kind;
+                    ITypeInfo info;
+
+                    typeLib.GetTypeInfoType(i, out kind);
+                    typeLib.GetTypeInfo(i, out info);
+
+                    try
+                    {
+                        string name;
+                        string doc;
+                        int helpContext;
+                        string helpFile;
+
+                        info.GetDocumentation(
+                            -1,
+                            out name,
+                            out doc,
+                            out helpContext,
+                            out helpFile
+                        );
+
+                        Console.WriteLine($"{i}: {kind} {name}");
+                    }
+                    finally
+                    {
+                        Marshal.ReleaseComObject(info);
+                    }
+                }
+            }
+            finally
+            {
+                Marshal.ReleaseComObject(typeLib);
+            }
+        }
     }
 }

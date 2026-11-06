@@ -24,10 +24,12 @@ namespace COMTSGen
                 Guid clsid = new Guid(args[0]);
 
                 
+                ITypeLib lib = ComInspector.LoadTypeLibraryFromFile(Environment.SystemDirectory + @"\shell32.dll");
+
+                Console.WriteLine("Types: " + lib.GetTypeInfoCount());
 
                 ComInspector.EnumerateTypes(clsid);
 
-                ITypeLib lib = ComInspector.LoadTypeLibraryFromFile(Environment.SystemDirectory + @"\shell32.dll");
 
                 Console.WriteLine("Types: " + lib.GetTypeInfoCount());
 

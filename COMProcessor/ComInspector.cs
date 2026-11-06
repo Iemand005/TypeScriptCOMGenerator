@@ -32,6 +32,14 @@ namespace COMProcessor
                 string libid = key.GetValue("TypeLib") as string;
                 string version = key.GetValue("Version") as string;
 
+                Console.WriteLine("CLSID: " + clsid);
+                Console.WriteLine("TypeLib: " + (libid ?? "<missing>"));
+                Console.WriteLine("Version: " + (version ?? "<missing>"));
+                Console.WriteLine("InprocServer32: " +
+                    key.OpenSubKey("InprocServer32")?.GetValue(""));
+                Console.WriteLine("LocalServer32: " +
+                    key.OpenSubKey("LocalServer32")?.GetValue(""));
+
                 if (libid == null || version == null)
                     throw new InvalidOperationException(
                         "CLSID has no registered Type Library.");

@@ -19,7 +19,10 @@ namespace COMTSGen
 
             try
             {
+
                 Guid clsid = new Guid(args[0]);
+
+                
 
                 ComInspector.EnumerateTypes(clsid);
 
